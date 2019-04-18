@@ -24,7 +24,16 @@ const xidlParser = function () {
     const interfaces = Object.create(null);
     const enums = Object.create(null);
     const results = Object.create(null)
-    const basicTypes = Object.create(null);
+    const typesMap = {
+        "wstring": "string",
+        "boolean": "boolean",
+        "short": "number",
+        "unsigned short": "number",
+        "long": "number",
+        "long long": "number",
+        "unsigned long": "number",
+        "uuid": "string"
+    };
 
     const checkParent = function (nodeName) {
         return stack[stack.length - 1].name === nodeName;
@@ -83,10 +92,17 @@ const xidlParser = function () {
             interfaceObject.methods.push(methodObject);
             node.object = methodObject;
         },
+        "const" : function (node) {
+            const enumObject = getParentNode("enum").object;
+            const name = node.attributes.name;
+            const value = node.attributes.value;
+            enumObject.values[name] = value;
+        },
         "enum" : function (node) {
             const name = node.attributes.name;
-            enums[name] = {
-                name: name
+            node.object = enums[name] = {
+                name: name,
+                values: {}
             };
         },
         "param" : function (node) {
@@ -154,7 +170,7 @@ const xidlParser = function () {
     });
 
     saxStream.on("closetag", function () {
-        const node = stack.pop();
+        stack.pop();
     });
 
     const wrapReturnValue = function (param) {
@@ -162,12 +178,12 @@ const xidlParser = function () {
         const type = param.type;
         if (interfaces[type]) {
             if (param.array) {
-                value = `__result.${param.name} ? __result.${param.name}.map(object => new virtualbox.${type}(this.__client, object)) : []`;
+                value = `__result.${param.name} ? __result.${param.name}.map((object: any) => new ${type}(this.__client, object)) : []`;
             } else {
-                value = `__result.${param.name} ? new virtualbox.${type}(this.__client, __result.${param.name}) : null`;
+                value = `__result.${param.name} ? new ${type}(this.__client, __result.${param.name}) : null`;
             }
         }
-        return value;
+        return `(${value}) as ${getParamType(param)}`;
     };
 
     const unwrapInputValue = function (param) {
@@ -175,13 +191,22 @@ const xidlParser = function () {
         const type = param.type;
         if (interfaces[type]) {
             if (param.array) {
-                value = `${value} ? ${value}.map(object => object.__object) : null`;
+                value = `${value} ? ${value}.map((object: any) => object.__object) : null`;
             } else {
-                value = `${value} ? ${value}.__object : null`;
+                value = `${value} ? (${value} as any).__object : null`;
             }
         }
         return value;
     };
+
+    const getParamType = function (param) {
+        const type = param.type;
+        let res = typesMap[type];
+        if (!res && (interfaces[type] || enums[type])) {
+            res = type;
+        }
+        return `${res || "any"}${param.array ? "[]" : ""}`;
+    }
 
     saxStream.on("end", function () {
         const output = [
@@ -199,31 +224,20 @@ const xidlParser = function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-"use strict";
-const path = require("path");
-const soap = require("soap");
-const virtualbox = module.exports = function (endpoint) {
-    return new Promise((resolve, reject) => {
-        soap.createClient(path.join(__dirname, "sdk-files", "vboxwebService.wsdl"), {
-            endpoint: endpoint
-        }, function (error, client) {
-            if (error) {
-                reject(error);
-            } else {
-                resolve(new virtualbox.IWebsessionManager(client.vboxService.vboxServicePort));
-            }
-        });
+import * as path from "path";
+import * as soap from "soap";
+export async function connect (endpoint: string) {
+    const client: any = await soap.createClientAsync(path.join(__dirname, "sdk-files", "vboxwebService.wsdl"), {
+        endpoint: endpoint
     });
-};
+    return new IWebsessionManager(client.vboxService.vboxServicePort);
+}
 const errorCodeRegExp = /rc=0x([0-9a-f]{8})/;
-const RootClass = class {
-    constructor(__client, __object) {
-        this.__client = __client;
-        this.__object = __object;
-    }
-    __invoke(name, args) {
+export class RootClass {
+    constructor(protected __client: any, protected __object?: any) {}
+    protected __invoke(name: string, args: any): Promise<any> {
         return new Promise((resolve, reject) => {
-            this.__client[name](args, (error, result) => {
+            this.__client[name](args, (error: any, result: any) => {
                 if (error) {
                     if (error.root && error.root.Envelope && error.root.Envelope.Body && error.root.Envelope.Body.Fault && error.root.Envelope.Body.Fault.faultstring) {
                         error.message = error.root.Envelope.Body.Fault.faultstring;
@@ -239,12 +253,21 @@ const RootClass = class {
             });
         });
     }
-};`
+}`
         ];
+        Object.keys(enums).forEach(function (keyName) {
+            output.push(`export const enum ${keyName} {`)
+            const enumInfo = enums[keyName];
+            const values = enumInfo.values;
+            Object.keys(values).forEach(function (enumName) {
+                output.push(`${enumName} = ${JSON.stringify(enumName)},`);
+            });
+            output.push(`}`)
+        });
         Object.keys(interfaces).forEach(function(interfaceName) {
             const interfaceObject = interfaces[interfaceName];
-            const parentClass = interfaceObject.parent ? `virtualbox.${interfaceObject.parent.name}` : "RootClass";
-            output.push(`virtualbox.${interfaceObject.name} = class extends ${parentClass} {`);
+            const parentClass = interfaceObject.parent ? interfaceObject.parent.name : "RootClass";
+            output.push(`export class ${interfaceObject.name} extends ${parentClass} {`);
             interfaceObject.methods.forEach(function (method) {
                 const args = method.in.map(param => `${JSON.stringify(param.name)}: ${unwrapInputValue(param)}`);
                 const skipThis = interfaceName === "IWebsessionManager";
@@ -264,16 +287,16 @@ const RootClass = class {
                 } else if (method.out.length > 0) {
                     returnBody = `({${method.out.map(param => `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`)}})`
                 }
-                output.push(`    ${method.name}(${method.in.map(param => '$' + param.name).join(', ')}) {`);
+                output.push(`    ${method.name}(${method.in.map(param => `$${param.name}: ${getParamType(param)}`).join(', ')}) {`);
                 output.push(`        return this.__invoke(${JSON.stringify(`${interfaceObject.name}_${method.name}`)}, {${args.join(",")}}).then(__result => ${returnBody});`);
                 output.push(`    }`);
             });
-            output.push(`};`);
+            output.push(`}`);
         });
         Object.keys(results).forEach(function (keyName) {
-            output.push(`virtualbox.${keyName} = ${results[keyName]};`);
+            output.push(`export const ${keyName} = ${results[keyName]};`);
         });
-        fs.writeFile(path.join(__dirname, "index.js"), output.join("\n"));
+        fs.writeFileSync(path.join(__dirname, "index.ts"), output.join("\n"));
     });
 
     return saxStream;

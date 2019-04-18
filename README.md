@@ -1,16 +1,15 @@
 # virtualbox-soap
 
 `virtualbox-soap` allows to easily use the [VirtualBox API](https://www.virtualbox.org/sdkref) from [nodejs](https://nodejs.org).
-It requires nodejs version 4.2 or later.
 
 It is designed to connect to VirtualBox through the SOAP protocol (over HTTP), which means that the `VBoxWebSrv` executable (which is included with VirtualBox) needs to be started on the machine where VirtualBox is installed.
 
 ## Getting started
 
-Install `virtualbox-soap` and `co` from the npm repository:
+Install `virtualbox-soap` from the npm repository:
 
 ```bash
-npm install virtualbox-soap co
+npm install virtualbox-soap
 ```
 
 Start VBoxWebSrv on your local machine:
@@ -22,26 +21,24 @@ VBoxWebSrv -a null
 Then you can try and adapt the following code sample to start a virtual machine:
 
 ```js
-"use strict";
-const virtualbox = require("virtualbox");
-const co = require("co");
+import * as virtualbox from "virtualbox-soap";
 
-co(function *() {
+(async function () {
     try {
         const serverURL = "http://localhost:18083"; // This url is the default one, it can be omitted
-        const websessionManager = yield virtualbox(serverURL);
-        const vbox = yield websessionManager.logon("username", "password");
-        const machine = yield vbox.findMachine("myMachineNameOrId");
-        const session = yield websessionManager.getSessionObject(vbox);
-        const progress = yield machine.launchVMProcess(session);
-        yield progress.waitForCompletion(-1);
-        const machineState = yield machine.getState();
+        const websessionManager = await virtualbox.connect(serverURL);
+        const vbox = await websessionManager.logon("username", "password");
+        const machine = await vbox.findMachine("myMachineNameOrId");
+        const session = await websessionManager.getSessionObject(vbox);
+        const progress = await machine.launchVMProcess(session);
+        await progress.waitForCompletion(-1);
+        const machineState = await machine.getState();
         console.log(`The virtual machine is ${machineState}`);
         // ...
     } catch (error) {
         console.error(error + "");
     }
-});
+})();
 ```
 
 ## Documentation

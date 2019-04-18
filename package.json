@@ -10,16 +10,21 @@
   "main": "index.js",
   "scripts": {
     "test": "node index.js",
-    "prepublish": "node generate-index"
+    "generate-index": "node generate-index",
+    "tsc": "tsc",
+    "prepare": "npm run generate-index && npm run tsc",
+    "format": "prettier '*.{ts,js,json}'",
+    "format:check": "npm run format -- --check",
+    "format:fix": "npm run format -- --write"
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "sax": "^1.1.4"
+    "@types/node": "11.13.5",
+    "prettier": "1.17.0",
+    "sax": "1.2.4",
+    "typescript": "3.4.3"
   },
   "dependencies": {
-    "soap": "^0.11.1"
-  },
-  "engines": {
-    "node": ">=4.2"
+    "soap": "0.26.0"
   }
 }
