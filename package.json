@@ -1,7 +1,7 @@
 {
   "author": "ariatemplates <contact@ariatemplates.com> (http://github.com/ariatemplates)",
   "name": "virtualbox-soap",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A wrapper for the SOAP API of Virtual Box.",
   "repository": {
     "type": "git",
