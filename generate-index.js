@@ -220,6 +220,14 @@ const xidlParser = function() {
     return `${res || "any"}${param.array ? "[]" : ""}`;
   };
 
+  const objectKeysNonEmpty = function(map) {
+    const array = Object.keys(map);
+    if (array.length === 0) {
+      throw new Error("Expected a non-empty object!");
+    }
+    return array;
+  };
+
   saxStream.on("end", function() {
     const output = [
       `/*
@@ -267,16 +275,16 @@ export class RootClass {
     }
 }`
     ];
-    Object.keys(enums).forEach(function(keyName) {
+    objectKeysNonEmpty(enums).forEach(function(keyName) {
       output.push(`export const enum ${keyName} {`);
       const enumInfo = enums[keyName];
       const values = enumInfo.values;
-      Object.keys(values).forEach(function(enumName) {
+      objectKeysNonEmpty(values).forEach(function(enumName) {
         output.push(`${enumName} = ${JSON.stringify(enumName)},`);
       });
       output.push(`}`);
     });
-    Object.keys(interfaces).forEach(function(interfaceName) {
+    objectKeysNonEmpty(interfaces).forEach(function(interfaceName) {
       const interfaceObject = interfaces[interfaceName];
       const parentClass = interfaceObject.parent
         ? interfaceObject.parent.name
@@ -321,7 +329,7 @@ export class RootClass {
       });
       output.push(`}`);
     });
-    Object.keys(results).forEach(function(keyName) {
+    objectKeysNonEmpty(results).forEach(function(keyName) {
       output.push(`export const ${keyName} = ${results[keyName]};`);
     });
     fs.writeFileSync(path.join(__dirname, "index.ts"), output.join("\n"));
