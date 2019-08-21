@@ -42,7 +42,7 @@ const xidlParser = function() {
   const getParentNode = function(nodeName) {
     for (let i = stack.length - 1; i >= 0; i--) {
       let curNode = stack[i];
-      if (curNode.name === nodeName) {
+      if (!nodeName || curNode.name === nodeName) {
         return curNode;
       }
     }
@@ -58,7 +58,12 @@ const xidlParser = function() {
     result: function(node) {
       if (checkParent("application")) {
         const attributes = node.attributes;
-        results[attributes.name] = attributes.value;
+        const resultInfo = {
+          value: attributes.value,
+          desc: []
+        };
+        node.object = resultInfo;
+        results[attributes.name] = resultInfo;
       } else {
         node.skip = true;
       }
@@ -85,6 +90,7 @@ const xidlParser = function() {
       }
       const interfaceObject = {
         name: name,
+        desc: [],
         parent: parentInterface,
         methods: []
       };
@@ -95,6 +101,7 @@ const xidlParser = function() {
       const interfaceObject = getParentNode("interface").object;
       const methodObject = {
         name: node.attributes.name,
+        desc: [],
         in: [],
         out: [],
         returnval: null
@@ -106,12 +113,25 @@ const xidlParser = function() {
       const enumObject = getParentNode("enum").object;
       const name = node.attributes.name;
       const value = node.attributes.value;
-      enumObject.values[name] = value;
+      const constObject = {
+        value: value,
+        desc: []
+      };
+      enumObject.values[name] = constObject;
+      node.object = constObject;
+    },
+    desc: function(node) {
+      const parentObject = getParentNode().object;
+      const desc = parentObject ? parentObject.desc : null;
+      if (desc) {
+        node.content = desc;
+      }
     },
     enum: function(node) {
       const name = node.attributes.name;
       node.object = enums[name] = {
         name: name,
+        desc: [],
         values: {}
       };
     },
@@ -122,8 +142,10 @@ const xidlParser = function() {
       const paramObject = {
         name: attributes.name,
         type: attributes.type,
-        array: attributes.safearray === "yes"
+        array: attributes.safearray === "yes",
+        desc: []
       };
+      node.object = paramObject;
       if (dir === "in") {
         methodObject.in.push(paramObject);
       } else if (dir === "out") {
@@ -143,16 +165,19 @@ const xidlParser = function() {
       }
       const type = attributes.type;
       const baseName = name[0].toUpperCase() + name.slice(1);
-      interfaceObject.methods.push({
+      const getterObject = {
         name: "get" + baseName,
         in: [],
         out: [],
+        desc: [],
         returnval: {
           name: name,
           type: type,
           array: attributes.safearray === "yes"
         }
-      });
+      };
+      node.object = getterObject;
+      interfaceObject.methods.push(getterObject);
       if (attributes.readonly !== "yes") {
         interfaceObject.methods.push({
           name: "set" + baseName,
@@ -171,7 +196,12 @@ const xidlParser = function() {
   };
 
   saxStream.on("opentag", function(node) {
-    const skip = stack.length > 0 ? stack[stack.length - 1].skip : false;
+    const lastStackNode = stack.length > 0 ? stack[stack.length - 1] : null;
+    if (lastStackNode && lastStackNode.content) {
+      node.content = [];
+      lastStackNode.content.push(node);
+    }
+    const skip = lastStackNode ? lastStackNode.skip : false;
     const tagHandler = tagHandlers[node.name];
     if (tagHandler && !skip) {
       tagHandler(node);
@@ -179,6 +209,13 @@ const xidlParser = function() {
       node.skip = true;
     }
     stack.push(node);
+  });
+
+  saxStream.on("text", function(text) {
+    const lastStackNode = stack.length > 0 ? stack[stack.length - 1] : null;
+    if (lastStackNode && lastStackNode.content) {
+      lastStackNode.content.push(text);
+    }
   });
 
   saxStream.on("closetag", function() {
@@ -226,6 +263,35 @@ const xidlParser = function() {
       throw new Error("Expected a non-empty object!");
     }
     return array;
+  };
+
+  const generateComment = function(desc) {
+    if (!desc) {
+      return "";
+    }
+    return desc
+      .map(function(node) {
+        if (typeof node === "string") {
+          return node;
+        } else if (node.name === "link") {
+          let to = node.attributes.to;
+          to = to.replace(/^#/, "");
+          return to;
+        } else if (node.name === "see") {
+          return `See: ${generateComment(node.content)}`;
+        } else if (node.name === "note") {
+          return `Note: ${generateComment(node.content)}`;
+        } else if (node.name === "result") {
+          return `Error ${node.attributes.name}: ${generateComment(
+            node.content
+          )}`;
+        } else {
+          const tag = node.name;
+          return `<${tag}>${generateComment(node.content)}</${tag}>`;
+        }
+      })
+      .join("")
+      .replace(/\s*@\w+\s*/g, " ");
   };
 
   saxStream.on("end", function() {
@@ -276,16 +342,29 @@ export class RootClass {
 }`
     ];
     objectKeysNonEmpty(enums).forEach(function(keyName) {
-      output.push(`export const enum ${keyName} {`);
       const enumInfo = enums[keyName];
       const values = enumInfo.values;
+      const comment = generateComment(enumInfo.desc);
+      if (comment) {
+        output.push("/**", comment, "*/");
+      }
+      output.push(`export const enum ${keyName} {`);
       objectKeysNonEmpty(values).forEach(function(enumName) {
+        const constObject = values[enumName];
+        const comment = generateComment(constObject.desc);
+        if (comment) {
+          output.push("/**", comment, "*/");
+        }
         output.push(`${enumName} = ${JSON.stringify(enumName)},`);
       });
       output.push(`}`);
     });
     objectKeysNonEmpty(interfaces).forEach(function(interfaceName) {
       const interfaceObject = interfaces[interfaceName];
+      const comment = generateComment(interfaceObject.desc);
+      if (comment) {
+        output.push("/**", comment, "*/");
+      }
       const parentClass = interfaceObject.parent
         ? interfaceObject.parent.name
         : "RootClass";
@@ -308,13 +387,31 @@ export class RootClass {
           method.returnval = null;
         }
         let returnBody = "null";
+        let returnComment = "";
         if (method.returnval) {
           returnBody = wrapReturnValue(method.returnval);
+          returnComment = generateComment(method.returnval.desc);
         } else if (method.out.length > 0) {
           returnBody = `({${method.out.map(
             param => `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`
           )}})`;
+          returnComment = `Object with the following properties: \n${method.out
+            .map(
+              param =>
+                `${JSON.stringify(param.name)} ${generateComment(param.desc)}`
+            )
+            .join("\n")}`;
         }
+        const comment = generateComment(method.desc);
+        output.push(
+          "/**",
+          comment,
+          ...method.in.map(
+            param => `@param ${param.name} ${generateComment(param.desc)}`
+          ),
+          returnComment ? `@return ${returnComment}` : "",
+          "*/"
+        );
         output.push(
           `    ${method.name}(${method.in
             .map(param => `$${param.name}: ${getParamType(param)}`)
@@ -330,7 +427,12 @@ export class RootClass {
       output.push(`}`);
     });
     objectKeysNonEmpty(results).forEach(function(keyName) {
-      output.push(`export const ${keyName} = ${results[keyName]};`);
+      const resultInfo = results[keyName];
+      const comment = generateComment(resultInfo.desc);
+      if (comment) {
+        output.push("/**", comment, "*/");
+      }
+      output.push(`export const ${keyName} = ${resultInfo.value};`);
     });
     fs.writeFileSync(path.join(__dirname, "index.ts"), output.join("\n"));
   });
