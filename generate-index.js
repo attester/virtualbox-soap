@@ -282,6 +282,9 @@ const xidlParser = function() {
         } else if (node.name === "see") {
           return `See: ${generateComment(node.content)}`;
         } else if (node.name === "note") {
+          if (node.attributes.internal === "yes") {
+            return "";
+          }
           return `Note: ${generateComment(node.content)}`;
         } else if (node.name === "result") {
           return `Error ${node.attributes.name}: ${generateComment(
