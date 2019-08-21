@@ -277,6 +277,8 @@ const xidlParser = function() {
           let to = node.attributes.to;
           to = to.replace(/^#/, "");
           return to;
+        } else if (node.name === "li") {
+          return `- ${generateComment(node.content).trimLeft()}`;
         } else if (node.name === "see") {
           return `See: ${generateComment(node.content)}`;
         } else if (node.name === "note") {
@@ -286,8 +288,7 @@ const xidlParser = function() {
             node.content
           )}`;
         } else {
-          const tag = node.name;
-          return `<${tag}>${generateComment(node.content)}</${tag}>`;
+          return `${generateComment(node.content)}`;
         }
       })
       .join("")
