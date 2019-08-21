@@ -56,7 +56,7 @@ const xidlParser = function() {
     },
     application: function(node) {},
     result: function(node) {
-      if (checkParent("library")) {
+      if (checkParent("application")) {
         const attributes = node.attributes;
         results[attributes.name] = attributes.value;
       } else {
