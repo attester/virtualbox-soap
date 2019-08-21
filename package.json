@@ -19,12 +19,12 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/node": "11.13.5",
-    "prettier": "1.17.0",
+    "@types/node": "12.7.2",
+    "prettier": "1.18.2",
     "sax": "1.2.4",
-    "typescript": "3.4.3"
+    "typescript": "3.5.3"
   },
   "dependencies": {
-    "soap": "0.26.0"
+    "soap": "0.29.0"
   }
 }
