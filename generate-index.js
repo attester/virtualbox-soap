@@ -189,13 +189,9 @@ const xidlParser = function() {
     const type = param.type;
     if (interfaces[type]) {
       if (param.array) {
-        value = `__result.${param.name} ? __result.${
-          param.name
-        }.map((object: any) => new ${type}(this.__client, object)) : []`;
+        value = `__result.${param.name} ? __result.${param.name}.map((object: any) => new ${type}(this.__client, object)) : []`;
       } else {
-        value = `__result.${param.name} ? new ${type}(this.__client, __result.${
-          param.name
-        }) : null`;
+        value = `__result.${param.name} ? new ${type}(this.__client, __result.${param.name}) : null`;
       }
     }
     return `(${value}) as ${getParamType(param)}`;
