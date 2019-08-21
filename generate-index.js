@@ -54,6 +54,7 @@ const xidlParser = function() {
     library: function(node) {
       node.skip = !checkParent("idl");
     },
+    application: function(node) {},
     result: function(node) {
       if (checkParent("library")) {
         const attributes = node.attributes;
