@@ -12,10 +12,10 @@
     "test": "node index.js",
     "generate-index": "node generate-index",
     "tsc": "tsc",
-    "prepare": "npm run generate-index && npm run tsc",
+    "prepare": "yarn generate-index && yarn tsc",
     "format": "prettier '*.{ts,js,json}'",
-    "format:check": "npm run format -- --check",
-    "format:fix": "npm run format -- --write"
+    "format:check": "yarn format --check",
+    "format:fix": "yarn format --write"
   },
   "license": "Apache-2.0",
   "devDependencies": {
