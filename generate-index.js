@@ -18,7 +18,7 @@ const sax = require("sax");
 const fs = require("fs");
 const path = require("path");
 
-const xidlParser = function() {
+const xidlParser = function () {
   const saxStream = sax.createStream(true);
   const stack = [];
   const interfaces = Object.create(null);
@@ -32,14 +32,14 @@ const xidlParser = function() {
     long: "number",
     "long long": "number",
     "unsigned long": "number",
-    uuid: "string"
+    uuid: "string",
   };
 
-  const checkParent = function(nodeName) {
+  const checkParent = function (nodeName) {
     return stack[stack.length - 1].name === nodeName;
   };
 
-  const getParentNode = function(nodeName) {
+  const getParentNode = function (nodeName) {
     for (let i = stack.length - 1; i >= 0; i--) {
       let curNode = stack[i];
       if (!nodeName || curNode.name === nodeName) {
@@ -50,17 +50,17 @@ const xidlParser = function() {
   };
 
   const tagHandlers = {
-    idl: function(node) {},
-    library: function(node) {
+    idl: function (node) {},
+    library: function (node) {
       node.skip = !checkParent("idl");
     },
-    application: function(node) {},
-    result: function(node) {
+    application: function (node) {},
+    result: function (node) {
       if (checkParent("application")) {
         const attributes = node.attributes;
         const resultInfo = {
           value: attributes.value,
-          desc: []
+          desc: [],
         };
         node.object = resultInfo;
         results[attributes.name] = resultInfo;
@@ -68,10 +68,10 @@ const xidlParser = function() {
         node.skip = true;
       }
     },
-    if: function(node) {
+    if: function (node) {
       node.skip = node.attributes.target !== "wsdl";
     },
-    interface: function(node) {
+    interface: function (node) {
       const attributes = node.attributes;
       const name = attributes.name;
       const parentInterfaceName = attributes.extends;
@@ -92,50 +92,50 @@ const xidlParser = function() {
         name: name,
         desc: [],
         parent: parentInterface,
-        methods: []
+        methods: [],
       };
       interfaces[name] = interfaceObject;
       node.object = interfaceObject;
     },
-    method: function(node) {
+    method: function (node) {
       const interfaceObject = getParentNode("interface").object;
       const methodObject = {
         name: node.attributes.name,
         desc: [],
         in: [],
         out: [],
-        returnval: null
+        returnval: null,
       };
       interfaceObject.methods.push(methodObject);
       node.object = methodObject;
     },
-    const: function(node) {
+    const: function (node) {
       const enumObject = getParentNode("enum").object;
       const name = node.attributes.name;
       const value = node.attributes.value;
       const constObject = {
         value: value,
-        desc: []
+        desc: [],
       };
       enumObject.values[name] = constObject;
       node.object = constObject;
     },
-    desc: function(node) {
+    desc: function (node) {
       const parentObject = getParentNode().object;
       const desc = parentObject ? parentObject.desc : null;
       if (desc) {
         node.content = desc;
       }
     },
-    enum: function(node) {
+    enum: function (node) {
       const name = node.attributes.name;
       node.object = enums[name] = {
         name: name,
         desc: [],
-        values: {}
+        values: {},
       };
     },
-    param: function(node) {
+    param: function (node) {
       const methodObject = getParentNode("method").object;
       const attributes = node.attributes;
       const dir = attributes.dir;
@@ -143,7 +143,7 @@ const xidlParser = function() {
         name: attributes.name,
         type: attributes.type,
         array: attributes.safearray === "yes",
-        desc: []
+        desc: [],
       };
       node.object = paramObject;
       if (dir === "in") {
@@ -156,7 +156,7 @@ const xidlParser = function() {
         throw new Error(`Invalid dir: ${dir}`);
       }
     },
-    attribute: function(node) {
+    attribute: function (node) {
       const interfaceObject = getParentNode("interface").object;
       const attributes = node.attributes;
       const name = attributes.name;
@@ -173,8 +173,8 @@ const xidlParser = function() {
         returnval: {
           name: name,
           type: type,
-          array: attributes.safearray === "yes"
-        }
+          array: attributes.safearray === "yes",
+        },
       };
       node.object = getterObject;
       interfaceObject.methods.push(getterObject);
@@ -185,17 +185,17 @@ const xidlParser = function() {
             {
               name: name,
               type: type,
-              array: attributes.safearray === "yes"
-            }
+              array: attributes.safearray === "yes",
+            },
           ],
           out: [],
-          returnval: null
+          returnval: null,
         });
       }
-    }
+    },
   };
 
-  saxStream.on("opentag", function(node) {
+  saxStream.on("opentag", function (node) {
     const lastStackNode = stack.length > 0 ? stack[stack.length - 1] : null;
     if (lastStackNode && lastStackNode.content) {
       node.content = [];
@@ -211,18 +211,18 @@ const xidlParser = function() {
     stack.push(node);
   });
 
-  saxStream.on("text", function(text) {
+  saxStream.on("text", function (text) {
     const lastStackNode = stack.length > 0 ? stack[stack.length - 1] : null;
     if (lastStackNode && lastStackNode.content) {
       lastStackNode.content.push(text);
     }
   });
 
-  saxStream.on("closetag", function() {
+  saxStream.on("closetag", function () {
     stack.pop();
   });
 
-  const wrapReturnValue = function(param) {
+  const wrapReturnValue = function (param) {
     let value = `__result.${param.name}`;
     const type = param.type;
     if (interfaces[type]) {
@@ -235,7 +235,7 @@ const xidlParser = function() {
     return `(${value}) as ${getParamType(param)}`;
   };
 
-  const unwrapInputValue = function(param) {
+  const unwrapInputValue = function (param) {
     let value = "$" + param.name;
     const type = param.type;
     if (interfaces[type]) {
@@ -248,7 +248,7 @@ const xidlParser = function() {
     return value;
   };
 
-  const getParamType = function(param) {
+  const getParamType = function (param) {
     const type = param.type;
     let res = typesMap[type];
     if (!res && (interfaces[type] || enums[type])) {
@@ -257,7 +257,7 @@ const xidlParser = function() {
     return `${res || "any"}${param.array ? "[]" : ""}`;
   };
 
-  const objectKeysNonEmpty = function(map) {
+  const objectKeysNonEmpty = function (map) {
     const array = Object.keys(map);
     if (array.length === 0) {
       throw new Error("Expected a non-empty object!");
@@ -265,12 +265,12 @@ const xidlParser = function() {
     return array;
   };
 
-  const generateComment = function(desc) {
+  const generateComment = function (desc) {
     if (!desc) {
       return "";
     }
     return desc
-      .map(function(node) {
+      .map(function (node) {
         if (typeof node === "string") {
           return node;
         } else if (node.name === "link") {
@@ -298,7 +298,7 @@ const xidlParser = function() {
       .replace(/\s*@\w+\s*/g, " ");
   };
 
-  saxStream.on("end", function() {
+  saxStream.on("end", function () {
     const output = [
       `/*
  * Copyright 2015 Amadeus s.a.s.
@@ -343,9 +343,9 @@ export class RootClass {
             });
         });
     }
-}`
+}`,
     ];
-    objectKeysNonEmpty(enums).forEach(function(keyName) {
+    objectKeysNonEmpty(enums).forEach(function (keyName) {
       const enumInfo = enums[keyName];
       const values = enumInfo.values;
       const comment = generateComment(enumInfo.desc);
@@ -353,7 +353,7 @@ export class RootClass {
         output.push("/**", comment, "*/");
       }
       output.push(`export const enum ${keyName} {`);
-      objectKeysNonEmpty(values).forEach(function(enumName) {
+      objectKeysNonEmpty(values).forEach(function (enumName) {
         const constObject = values[enumName];
         const comment = generateComment(constObject.desc);
         if (comment) {
@@ -363,7 +363,7 @@ export class RootClass {
       });
       output.push(`}`);
     });
-    objectKeysNonEmpty(interfaces).forEach(function(interfaceName) {
+    objectKeysNonEmpty(interfaces).forEach(function (interfaceName) {
       const interfaceObject = interfaces[interfaceName];
       const comment = generateComment(interfaceObject.desc);
       if (comment) {
@@ -375,9 +375,9 @@ export class RootClass {
       output.push(
         `export class ${interfaceObject.name} extends ${parentClass} {`
       );
-      interfaceObject.methods.forEach(function(method) {
+      interfaceObject.methods.forEach(function (method) {
         const args = method.in.map(
-          param => `${JSON.stringify(param.name)}: ${unwrapInputValue(param)}`
+          (param) => `${JSON.stringify(param.name)}: ${unwrapInputValue(param)}`
         );
         const skipThis = interfaceName === "IWebsessionManager";
         if (!skipThis) {
@@ -397,11 +397,12 @@ export class RootClass {
           returnComment = generateComment(method.returnval.desc);
         } else if (method.out.length > 0) {
           returnBody = `({${method.out.map(
-            param => `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`
+            (param) =>
+              `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`
           )}})`;
           returnComment = `Object with the following properties: \n${method.out
             .map(
-              param =>
+              (param) =>
                 `${JSON.stringify(param.name)} ${generateComment(param.desc)}`
             )
             .join("\n")}`;
@@ -411,14 +412,14 @@ export class RootClass {
           "/**",
           comment,
           ...method.in.map(
-            param => `@param ${param.name} ${generateComment(param.desc)}`
+            (param) => `@param ${param.name} ${generateComment(param.desc)}`
           ),
           returnComment ? `@return ${returnComment}` : "",
           "*/"
         );
         output.push(
           `    ${method.name}(${method.in
-            .map(param => `$${param.name}: ${getParamType(param)}`)
+            .map((param) => `$${param.name}: ${getParamType(param)}`)
             .join(", ")}) {`
         );
         output.push(
@@ -430,7 +431,7 @@ export class RootClass {
       });
       output.push(`}`);
     });
-    objectKeysNonEmpty(results).forEach(function(keyName) {
+    objectKeysNonEmpty(results).forEach(function (keyName) {
       const resultInfo = results[keyName];
       const comment = generateComment(resultInfo.desc);
       if (comment) {
