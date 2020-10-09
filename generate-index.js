@@ -285,6 +285,9 @@ const xidlParser = function () {
 
   const getParamType = function (param) {
     const type = param.type;
+    if (type === "octet" && param.array) {
+      return "string";
+    }
     let res = typesMap[type];
     if (!res && (interfaces[type] || enums[type])) {
       res = type;
