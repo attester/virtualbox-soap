@@ -75,6 +75,15 @@ const xidlParser = function () {
       const attributes = node.attributes;
       const name = attributes.name;
       const parentInterfaceName = attributes.extends;
+      const wsmap = attributes.wsmap;
+      if (wsmap === "suppress") {
+        node.object = {
+          name,
+          methods: [],
+        };
+        return;
+      }
+      const isStruct = wsmap === "struct";
       const parentInterface = parentInterfaceName
         ? interfaces[parentInterfaceName] || null
         : null;
@@ -87,13 +96,24 @@ const xidlParser = function () {
         throw new Error(
           `Unknown parent interface: ${parentInterfaceName} for ${name}`
         );
+      } else if (isStruct && parentInterface) {
+        throw new Error(
+          `Unsupported struct with parent interface ${parentInterfaceName}`
+        );
       }
-      const interfaceObject = {
-        name: name,
-        desc: [],
-        parent: parentInterface,
-        methods: [],
-      };
+      const interfaceObject = isStruct
+        ? {
+            name,
+            desc: [],
+            attributes: [],
+          }
+        : {
+            name: name,
+            global: wsmap === "global",
+            desc: [],
+            parent: parentInterface,
+            methods: [],
+          };
       interfaces[name] = interfaceObject;
       node.object = interfaceObject;
     },
@@ -164,33 +184,47 @@ const xidlParser = function () {
         return;
       }
       const type = attributes.type;
-      const baseName = name[0].toUpperCase() + name.slice(1);
-      const getterObject = {
-        name: "get" + baseName,
-        in: [],
-        out: [],
-        desc: [],
-        returnval: {
-          name: name,
-          type: type,
-          array: attributes.safearray === "yes",
-        },
-      };
-      node.object = getterObject;
-      interfaceObject.methods.push(getterObject);
-      if (attributes.readonly !== "yes") {
-        interfaceObject.methods.push({
-          name: "set" + baseName,
-          in: [
-            {
-              name: name,
-              type: type,
-              array: attributes.safearray === "yes",
-            },
-          ],
+      if (interfaceObject.attributes) {
+        const attributeObject = {
+          name,
+          desc: [],
+          returnval: {
+            name: name,
+            type: type,
+            array: attributes.safearray === "yes",
+          },
+        };
+        node.object = attributeObject;
+        interfaceObject.attributes.push(attributeObject);
+      } else {
+        const baseName = name[0].toUpperCase() + name.slice(1);
+        const getterObject = {
+          name: "get" + baseName,
+          in: [],
           out: [],
-          returnval: null,
-        });
+          desc: [],
+          returnval: {
+            name: name,
+            type: type,
+            array: attributes.safearray === "yes",
+          },
+        };
+        node.object = getterObject;
+        interfaceObject.methods.push(getterObject);
+        if (attributes.readonly !== "yes") {
+          interfaceObject.methods.push({
+            name: "set" + baseName,
+            in: [
+              {
+                name: name,
+                type: type,
+                array: attributes.safearray === "yes",
+              },
+            ],
+            out: [],
+            returnval: null,
+          });
+        }
       }
     },
   };
@@ -225,11 +259,12 @@ const xidlParser = function () {
   const wrapReturnValue = function (param) {
     let value = `__result.${param.name}`;
     const type = param.type;
-    if (interfaces[type]) {
+    const interfaceObject = interfaces[type];
+    if (interfaceObject && interfaceObject.methods) {
       if (param.array) {
-        value = `__result.${param.name} ? __result.${param.name}.map((object: any) => new ${type}(this.__client, object)) : []`;
+        value = `(__result && __result.${param.name}) ? __result.${param.name}.map((object: any) => new ${type}(this.__client, object)) : []`;
       } else {
-        value = `__result.${param.name} ? new ${type}(this.__client, __result.${param.name}) : null`;
+        value = `(__result && __result.${param.name}) ? new ${type}(this.__client, __result.${param.name}) : null`;
       }
     }
     return `(${value}) as ${getParamType(param)}`;
@@ -369,67 +404,79 @@ export class RootClass {
       if (comment) {
         output.push("/**", comment, "*/");
       }
-      const parentClass = interfaceObject.parent
-        ? interfaceObject.parent.name
-        : "RootClass";
-      output.push(
-        `export class ${interfaceObject.name} extends ${parentClass} {`
-      );
-      interfaceObject.methods.forEach(function (method) {
-        const args = method.in.map(
-          (param) => `${JSON.stringify(param.name)}: ${unwrapInputValue(param)}`
+      if (interfaceObject.attributes) {
+        output.push(`export interface ${interfaceObject.name} {`);
+        interfaceObject.attributes.forEach(function (attribute) {
+          output.push(`/** ${generateComment(attribute.desc)} */`);
+          output.push(
+            `${attribute.name}: ${getParamType(attribute.returnval)};`
+          );
+        });
+        output.push(`}`);
+      } else {
+        const parentClass = interfaceObject.parent
+          ? interfaceObject.parent.name
+          : "RootClass";
+        output.push(
+          `export class ${interfaceObject.name} extends ${parentClass} {`
         );
-        const skipThis = interfaceName === "IWebsessionManager";
-        if (!skipThis) {
-          args.push(`"_this": this.__object`);
-        }
-        if (method.returnval) {
-          method.returnval.name = "returnval";
-        }
-        if (method.returnval && method.out.length > 0) {
-          method.out.push(method.returnval);
-          method.returnval = null;
-        }
-        let returnBody = "null";
-        let returnComment = "";
-        if (method.returnval) {
-          returnBody = wrapReturnValue(method.returnval);
-          returnComment = generateComment(method.returnval.desc);
-        } else if (method.out.length > 0) {
-          returnBody = `({${method.out.map(
+        interfaceObject.methods.forEach(function (method) {
+          const args = method.in.map(
             (param) =>
-              `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`
-          )}})`;
-          returnComment = `Object with the following properties: \n${method.out
-            .map(
+              `${JSON.stringify(param.name)}: ${unwrapInputValue(param)}`
+          );
+          const skipThis = interfaceObject.global;
+          if (!skipThis) {
+            args.push(`"_this": this.__object`);
+          }
+          if (method.returnval) {
+            method.returnval.name = "returnval";
+          }
+          if (method.returnval && method.out.length > 0) {
+            method.out.push(method.returnval);
+            method.returnval = null;
+          }
+          let returnBody = "null";
+          let returnComment = "";
+          if (method.returnval) {
+            returnBody = wrapReturnValue(method.returnval);
+            returnComment = generateComment(method.returnval.desc);
+          } else if (method.out.length > 0) {
+            returnBody = `({${method.out.map(
               (param) =>
-                `${JSON.stringify(param.name)} ${generateComment(param.desc)}`
-            )
-            .join("\n")}`;
-        }
-        const comment = generateComment(method.desc);
-        output.push(
-          "/**",
-          comment,
-          ...method.in.map(
-            (param) => `@param ${param.name} ${generateComment(param.desc)}`
-          ),
-          returnComment ? `@return ${returnComment}` : "",
-          "*/"
-        );
-        output.push(
-          `    ${method.name}(${method.in
-            .map((param) => `$${param.name}: ${getParamType(param)}`)
-            .join(", ")}) {`
-        );
-        output.push(
-          `        return this.__invoke(${JSON.stringify(
-            `${interfaceObject.name}_${method.name}`
-          )}, {${args.join(",")}}).then(__result => ${returnBody});`
-        );
-        output.push(`    }`);
-      });
-      output.push(`}`);
+                `${JSON.stringify(param.name)}: ${wrapReturnValue(param)}`
+            )}})`;
+            returnComment = `Object with the following properties: \n${method.out
+              .map(
+                (param) =>
+                  `${JSON.stringify(param.name)} ${generateComment(param.desc)}`
+              )
+              .join("\n")}`;
+          }
+          const comment = generateComment(method.desc);
+          output.push(
+            "/**",
+            comment,
+            ...method.in.map(
+              (param) => `@param ${param.name} ${generateComment(param.desc)}`
+            ),
+            returnComment ? `@return ${returnComment}` : "",
+            "*/"
+          );
+          output.push(
+            `    ${method.name}(${method.in
+              .map((param) => `$${param.name}: ${getParamType(param)}`)
+              .join(", ")}) {`
+          );
+          output.push(
+            `        return this.__invoke(${JSON.stringify(
+              `${interfaceObject.name}_${method.name}`
+            )}, {${args.join(",")}}).then(__result => ${returnBody});`
+          );
+          output.push(`    }`);
+        });
+        output.push(`}`);
+      }
     });
     objectKeysNonEmpty(results).forEach(function (keyName) {
       const resultInfo = results[keyName];
