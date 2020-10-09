@@ -351,7 +351,7 @@ const xidlParser = function () {
  */
 import * as path from "path";
 import * as soap from "soap";
-export async function connect (endpoint: string) {
+export async function connect (endpoint?: string) {
     const client: any = await soap.createClientAsync(path.join(__dirname, "sdk-files", "vboxwebService.wsdl"), {
         endpoint: endpoint
     });
