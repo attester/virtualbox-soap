@@ -8,6 +8,12 @@ import {
   BitmapFormat,
 } from "..";
 import path from "path";
+import assert from "assert";
+import fs from "fs";
+
+const expectedScreenshot = fs
+  .readFileSync(path.join(__dirname, "./expectedScreenshot.png"))
+  .toString("base64");
 
 const wait = (delay: number) =>
   new Promise((resolve) => setTimeout(resolve, delay));
@@ -69,15 +75,25 @@ async function test() {
           console.log("getScreenResolution");
           const resolution = await display.getScreenResolution(0);
           console.log(resolution);
-          const screenshot = await display.takeScreenShotToArray(
-            0,
-            resolution.width,
-            resolution.height,
-            BitmapFormat.PNG
-          );
-          console.log(
-            `data:image/png;base64,${screenshot.replace(/\s+/g, "")}`
-          );
+          const screenshot = (
+            await display.takeScreenShotToArray(
+              0,
+              resolution.width,
+              resolution.height,
+              BitmapFormat.PNG
+            )
+          ).replace(/\s+/g, "");
+          if (screenshot === expectedScreenshot) {
+            console.log("Correct screenshot!");
+          } else {
+            fs.writeFileSync(
+              path.join(__dirname, "actualScreenshot.png"),
+              screenshot,
+              { encoding: "base64" }
+            );
+            console.log(`data:image/png;base64,${screenshot}`);
+            assert.fail("Unexpected screenshot!");
+          }
           const machineState = await machine.getState();
           console.log(`Machine is ${machineState}`);
           if (machineState !== "Running") {
