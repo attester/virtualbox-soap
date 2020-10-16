@@ -100,7 +100,9 @@ async function test() {
       }
     } finally {
       console.log("unregister");
-      const media = await machine.unregister(CleanupMode.Full);
+      const media = await machine.unregister(
+        CleanupMode.DetachAllReturnHardDisksOnly
+      );
       console.log("deleteConfig");
       const progress = await machine.deleteConfig(media);
       await progress.waitForCompletion(-1);
