@@ -3956,7 +3956,7 @@
 
   <enum
     name="VirtualSystemDescriptionType"
-    uuid="9078595f-74cf-4454-8787-34a8f72beed5"
+    uuid="70c5ca7b-65a8-49cc-9b19-e80192b9db1d"
     >
     <desc>Used with <link to="IVirtualSystemDescription" /> to describe the type of
     a configuration value.</desc>
@@ -4024,6 +4024,7 @@
     <const name="CloudOCISubnetCompartment" value="47" />
     <const name="CloudPublicSSHKey" value="48" />
     <const name="BootingFirmware" value="49" />
+    <const name="CloudInitScriptPath" value="50" />
   </enum>
 
   <enum
@@ -4498,7 +4499,7 @@
         that goes online to fetch the packages (e.g. debian-*-netinst.iso) or
         to fetch updates during the install process.
 
-        Format: [schema=]schema://[login@password:]proxy[:port][;...]
+        Format: [schema=]schema://[login[:password]@]proxy[:port][;...]
 
         The default is taken from the host proxy configuration (once implemented).
       </desc>
@@ -11069,7 +11070,7 @@
       <desc>
         Proxy server URL for the <link to="ProxyMode_Manual" /> proxy mode.
 
-        The format is: [{type}"://"][{userid}[@{password}]:]{server}[":"{port}]
+        The format is: [{type}"://"][{userid}[:{password}]@]{server}[":"{port}]
 
         Valid types are: http (default), https, socks4, socks4a, socks5, socks5h and direct.
         Please note that these are proxy types defining how the proxy operates rather than
@@ -11468,7 +11469,7 @@
     name="IGuestOSType" extends="$unknown"
     uuid="d0d6c6d8-e5db-4d2c-baaa-c71053a6236d"
     wsmap="struct"
-    reservedAttributes="16"
+    reservedAttributes="15"
     >
     <desc>
     </desc>
@@ -11599,6 +11600,10 @@
 
     <attribute name="recommendedX2APIC" type="boolean" readonly="yes">
       <desc>Returns @c true if X2APIC is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedCPUCount" type="unsigned long" readonly="yes">
+      <desc>Number of vCPUs recommended for this OS type.</desc>
     </attribute>
 
   </interface>
