@@ -20,6 +20,10 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "17.0.23",
+    "@types/pixelmatch": "5.2.4",
+    "@types/pngjs": "6.0.1",
+    "pixelmatch": "5.2.1",
+    "pngjs": "6.0.0",
     "prettier": "2.6.2",
     "sax": "1.2.4",
     "ts-node": "10.7.0",

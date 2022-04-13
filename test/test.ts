@@ -10,10 +10,13 @@ import {
 import path from "path";
 import assert from "assert";
 import fs from "fs";
+import { PNG } from "pngjs";
+import pixelmatch from "pixelmatch";
 
-const expectedScreenshot = fs
-  .readFileSync(path.join(__dirname, "./expectedScreenshot.png"))
-  .toString("base64");
+const expectedScreenshotBuffer = fs.readFileSync(
+  path.join(__dirname, "./expectedScreenshot.png")
+);
+const expectedScreenshot = expectedScreenshotBuffer.toString("base64");
 
 const wait = (delay: number) =>
   new Promise((resolve) => setTimeout(resolve, delay));
@@ -84,7 +87,7 @@ async function test() {
             )
           ).replace(/\s+/g, "");
           if (screenshot === expectedScreenshot) {
-            console.log("Correct screenshot!");
+            console.log("Exact screenshot!");
           } else {
             fs.writeFileSync(
               path.join(__dirname, "actualScreenshot.png"),
@@ -92,7 +95,24 @@ async function test() {
               { encoding: "base64" }
             );
             console.log(`data:image/png;base64,${screenshot}`);
-            assert.fail("Unexpected screenshot!");
+            const screenshotBuffer = Buffer.from(screenshot, "base64");
+            const screenshotPNG = PNG.sync.read(screenshotBuffer);
+            const expectedScreenshotPNG = PNG.sync.read(
+              expectedScreenshotBuffer
+            );
+            const differentPixels = pixelmatch(
+              screenshotPNG.data,
+              expectedScreenshotPNG.data,
+              null,
+              resolution.width,
+              resolution.height
+            );
+            console.log(`Different pixels: ${differentPixels}`);
+            if (differentPixels < 30) {
+              console.log("Similar screenshot!");
+            } else {
+              assert.fail("Unexpected screenshot");
+            }
           }
           const machineState = await machine.getState();
           console.log(`Machine is ${machineState}`);
