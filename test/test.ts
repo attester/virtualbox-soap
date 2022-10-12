@@ -33,6 +33,9 @@ async function test() {
       "myAlpineMachine",
       [],
       "Linux_64",
+      "",
+      "",
+      "",
       ""
     );
     try {
