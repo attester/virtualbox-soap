@@ -31,5 +31,9 @@
   },
   "dependencies": {
     "soap": "0.45.0"
-  }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ]
 }
