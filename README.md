@@ -1,5 +1,7 @@
 # virtualbox-soap
 
+[![npm](https://img.shields.io/npm/v/virtualbox-soap)](https://www.npmjs.com/package/virtualbox-soap)
+
 `virtualbox-soap` allows to easily use the [VirtualBox API](https://www.virtualbox.org/sdkref) from [nodejs](https://nodejs.org).
 
 It is designed to connect to VirtualBox through the SOAP protocol (over HTTP), which means that the `VBoxWebSrv` executable (which is included with VirtualBox) needs to be started on the machine where VirtualBox is installed.
